@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Schema Validator",
+  "version": "0.0.0",
+  "description": "Validates schema.org JSON-LD of the current page in the sidebar. Works offline.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "author": "Gingco Communication GmbH & Co. KG",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "schema-validator@gingco.de",
+      "strict_min_version": "115.0"
+    }
+  },
+  "permissions": [
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "action": {
+    "default_title": "Schema Validator",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "sidebar_action": {
+    "default_title": "Schema Validator",
+    "default_panel": "sidepanel.html",
+    "open_at_install": false,
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  }
+}

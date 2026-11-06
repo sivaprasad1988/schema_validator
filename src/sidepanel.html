@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Schema Validator</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <div class="page">
+        <div id="page-title" class="page-title">–</div>
+        <div id="page-url" class="page-url"></div>
+      </div>
+      <button id="rescan" type="button" title="Scan the page again">Rescan</button>
+    </header>
+
+    <section id="summary" class="summary" hidden>
+      <div class="filters">
+        <label class="pill error"><input type="checkbox" data-filter="error" checked /> <span id="count-error">0</span> errors</label>
+        <label class="pill warning"><input type="checkbox" data-filter="warning" checked /> <span id="count-warning">0</span> warnings</label>
+        <label class="pill info"><input type="checkbox" data-filter="info" checked /> <span id="count-info">0</span> info</label>
+      </div>
+      <div id="external-links" class="links">
+        Cross-check:
+        <a id="link-rrt" target="_blank" rel="noopener noreferrer">Rich Results Test</a> ·
+        <a id="link-smv" target="_blank" rel="noopener noreferrer">Schema Markup Validator</a>
+      </div>
+    </section>
+
+    <main id="content" class="content"></main>
+
+    <footer id="vocab-info" class="foot"></footer>
+
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>

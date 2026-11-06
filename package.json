@@ -1,0 +1,19 @@
+{
+  "name": "schema-validator-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser extension (Chrome + Firefox) that validates schema.org JSON-LD in a side panel.",
+  "author": "Gingco Communication GmbH & Co. KG",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:chrome": "node scripts/build.mjs chrome",
+    "build:firefox": "node scripts/build.mjs firefox",
+    "update-vocab": "node scripts/update-vocab.mjs",
+    "test": "node --test test/validator.test.mjs",
+    "build-icons": "bash scripts/build-icons.sh"
+  }
+}

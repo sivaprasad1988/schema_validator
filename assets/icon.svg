@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>Schema Validator</title>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="#2257c5"/>
+  <g fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M42 28c-10 0-12 6-12 14v12c0 6-3 10-9 10 6 0 9 4 9 10v12c0 8 2 14 12 14"/>
+    <path d="M86 28c10 0 12 6 12 14v12c0 6 3 10 9 10-6 0-9 4-9 10v12c0 8-2 14-12 14"/>
+  </g>
+  <path d="M47 65l11 12 23-26" fill="none" stroke="#5fe08a" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
