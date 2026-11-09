@@ -1,4 +1,4 @@
-import { createValidator, SEVERITIES } from './lib/validator.js';
+import { createValidator, buildItems, issueInItem, SEVERITIES } from './lib/validator.js';
 import { extractJsonLd } from './lib/extract.js';
 
 const api = globalThis.browser ?? globalThis.chrome;
@@ -97,7 +97,39 @@ function render() {
   for (const s of SEVERITIES) $(`count-${s}`).textContent = totals[s];
   $('summary').hidden = false;
 
-  $('content').replaceChildren(...results.map((result, pos) => renderBlock(result, payload.blocks[pos])));
+  const items = buildItems(results);
+  $('content').replaceChildren(
+    el('h2', { class: 'section-title', text: `Detected items (${items.length})` }),
+    ...items.map((item, i) => renderItem(item, i)),
+    el('h2', { class: 'section-title', text: `Source blocks (${results.length})` }),
+    ...results.map((result, pos) => renderBlock(result, payload.blocks[pos])),
+  );
+}
+
+// One card per item, as on validator.schema.org: merged by @id, referenced nodes nested.
+function renderItem(item, i) {
+  const own = state.results.flatMap((r, pos) => r.issues.filter((issue) => issueInItem(item, pos, issue.path)));
+  const errors = own.filter((x) => x.severity === 'error').length;
+  const warnings = own.filter((x) => x.severity === 'warning').length;
+  return el(
+    'details',
+    { class: 'block item', open: '' },
+    el(
+      'summary',
+      {},
+      el('span', { class: 'block-types', text: item.types.join(', ') || '(no type)' }),
+      el('span', { class: 'block-meta', text: `${errors} errors · ${warnings} warnings` }),
+      errors ? el('span', { class: 'count error', text: String(errors), title: 'Errors' }) : null,
+      warnings ? el('span', { class: 'count warning', text: String(warnings), title: 'Warnings' }) : null,
+      !errors && !warnings ? el('span', { class: 'count ok', text: '✓', title: 'No errors or warnings' }) : null,
+    ),
+    el(
+      'div',
+      { class: 'block-body' },
+      item.id ? el('div', { class: 'item-id', text: `ID: ${item.id}` }) : null,
+      el('div', { class: 'tree' }, renderTree(item.data, `item${i}`, null, new Map(), 0)),
+    ),
+  );
 }
 
 function renderBlock(result, block) {

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createValidator } from '../src/lib/validator.js';
+import { createValidator, buildItems, issueInItem } from '../src/lib/validator.js';
 
 const vocab = JSON.parse(readFileSync(new URL('../src/vocab.json', import.meta.url), 'utf8'));
 const { validatePage } = createValidator(vocab);
@@ -106,7 +106,7 @@ test('URL values are checked', () => {
   assert.ok(has(issues({ '@context': CTX, '@type': 'Thing', url: '/relative' }), 'info', /Relative URL/));
 });
 
-test('@graph references resolve, dangling references warn', () => {
+test('@graph references resolve, dangling references are info (as on validator.schema.org)', () => {
   const graph = {
     '@context': CTX,
     '@graph': [
@@ -116,7 +116,7 @@ test('@graph references resolve, dangling references warn', () => {
     ],
   };
   const list = issues(graph);
-  assert.ok(has(list, 'warning', /#missing.*not defined/));
+  assert.ok(has(list, 'info', /#missing.*not defined/));
   assert.ok(!list.some((i) => /#org/.test(i.message)));
 });
 
@@ -154,4 +154,68 @@ test('BreadcrumbList with position numbers is clean', () => {
 test('top-level types are collected per block', () => {
   const [result] = run({ '@context': CTX, '@graph': [{ '@type': 'Organization' }, { '@type': 'WebSite' }] });
   assert.deepEqual(result.types, ['Organization', 'WebSite']);
+});
+
+// Expected output taken from validator.schema.org (checked 2026-11-06 with this input).
+test('items merge nodes by @id and nest referenced nodes like validator.schema.org', () => {
+  const doc = {
+    '@context': 'https://schema.org/',
+    '@graph': [
+      { '@type': 'Organization', '@id': 'https://example.com/#org', logo: 'https://example.com/logo.svg', name: 'Example Org', sameAs: ['https://www.facebook.com/example'], url: 'https://example.com/' },
+      {
+        '@type': 'WebSite',
+        '@id': 'https://example.com/#website',
+        name: 'Example Site',
+        publisher: { '@type': 'Organization', '@id': 'https://example.com/#org', name: 'Example Org', url: 'https://example.com/' },
+        author: { '@id': 'https://example.com/#missing' },
+        url: 'https://example.com/',
+      },
+    ],
+  };
+  const results = run(doc);
+  assert.ok(!results[0].issues.some((i) => i.severity !== 'info'));
+  assert.ok(!results[0].issues.some((i) => /more than once/.test(i.message)));
+  const items = buildItems(results);
+  assert.equal(items.length, 1);
+  assert.deepEqual(items[0].data, {
+    '@type': 'WebSite',
+    '@id': 'https://example.com/#website',
+    name: 'Example Site',
+    url: 'https://example.com/',
+    publisher: {
+      '@type': 'Organization',
+      '@id': 'https://example.com/#org',
+      logo: 'https://example.com/logo.svg',
+      name: 'Example Org',
+      sameAs: 'https://www.facebook.com/example',
+      url: 'https://example.com/',
+    },
+    author: { '@type': 'Thing', '@id': 'https://example.com/#missing' },
+  });
+});
+
+test('items merge across blocks and attribute issues to the item', () => {
+  const results = run(
+    { '@context': CTX, '@type': 'WebPage', '@id': '#page', publisher: { '@id': '#org' } },
+    { '@context': CTX, '@type': 'Organization', '@id': '#org', name: 'Org', foo: 1 },
+  );
+  const items = buildItems(results);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].data.publisher.name, 'Org');
+  const own = results.flatMap((r, pos) => r.issues.filter((i) => issueInItem(items[0], pos, i.path)));
+  assert.ok(own.some((i) => /foo/.test(i.message)));
+});
+
+test('unreferenced top-level nodes are separate items, cycles terminate', () => {
+  const items = buildItems(
+    run({
+      '@context': CTX,
+      '@graph': [
+        { '@type': 'Person', '@id': '#a', knows: { '@id': '#b' } },
+        { '@type': 'Person', '@id': '#b', knows: { '@id': '#a' } },
+        { '@type': 'Thing', name: 'Loose' },
+      ],
+    }),
+  );
+  assert.deepEqual(items.map((i) => i.data.name), ['Loose']);
 });

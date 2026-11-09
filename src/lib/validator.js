@@ -163,22 +163,15 @@ export function createValidator(vocab) {
 
     for (const ref of referenced) {
       if (!defined.has(ref.id)) {
+        // Info only: validator.schema.org shows such references as @type Thing without a warning.
         results[ref.pos].issues.push({
-          severity: 'warning',
+          severity: 'info',
           path: ref.path,
           message: `Reference ${quote(ref.id)} is not defined in any JSON-LD block on this page.`,
         });
       }
     }
-    for (const [id, defs] of defined) {
-      for (const def of defs.slice(1)) {
-        results[def.pos].issues.push({
-          severity: 'info',
-          path: def.path,
-          message: `@id ${quote(id)} is defined more than once (first in block ${results[defs[0].pos].index + 1} at ${defs[0].path}). Consumers merge these nodes.`,
-        });
-      }
-    }
+    // Nodes sharing an @id are merged (as validator.schema.org does); this is not reported.
     return results;
   }
 
@@ -401,4 +394,120 @@ export function createValidator(vocab) {
   }
 
   return { validatePage, isA };
+}
+
+
+// Builds the item view of validator.schema.org from validated blocks:
+// nodes with the same @id are merged across all blocks, nodes referenced by another node are not
+// listed on their own, references are expanded, undefined references become { @type: Thing, @id }.
+// Each item lists its source nodes ({ pos, path }) so issues can be attributed to it.
+export function buildItems(results) {
+  const nodes = new Map(); // @id -> { types: [], props: Map(key -> values[]), sources: [] }
+  const referenced = new Set();
+  const tops = []; // { node, pos, path }
+
+  const addValue = (values, v) => {
+    const key = isObject(v) && typeof v['@id'] === 'string' ? `@id:${v['@id']}` : JSON.stringify(v);
+    if (!values.some((x) => x.key === key)) values.push({ key, value: v });
+  };
+
+  const collect = (value, pos, path, isTop) => {
+    if (Array.isArray(value)) {
+      value.forEach((v, i) => collect(v, pos, `${path}[${i}]`, false));
+      return;
+    }
+    if (!isObject(value)) return;
+    const id = typeof value['@id'] === 'string' && value['@id'] ? value['@id'] : null;
+    if (id && !isTop) referenced.add(id);
+    const hasContent = Object.keys(value).some((k) => k !== '@id' && k !== '@context');
+    if (id && hasContent) {
+      if (!nodes.has(id)) nodes.set(id, { types: [], props: new Map(), sources: [] });
+      const n = nodes.get(id);
+      for (const t of value['@type'] != null ? asArray(value['@type']) : []) if (!n.types.includes(t)) n.types.push(t);
+      for (const [k, v] of Object.entries(value)) {
+        if (k.startsWith('@')) continue;
+        if (!n.props.has(k)) n.props.set(k, []);
+        for (const x of asArray(v)) addValue(n.props.get(k), x);
+      }
+      n.sources.push({ pos, path });
+    }
+    for (const [k, v] of Object.entries(value)) {
+      if (!k.startsWith('@')) collect(v, pos, `${path}.${k}`, false);
+    }
+  };
+
+  results.forEach((res, pos) => {
+    if (res.data == null) return;
+    const roots = Array.isArray(res.data) ? res.data.map((d, i) => [d, `$[${i}]`]) : [[res.data, '$']];
+    for (const [root, path] of roots) {
+      if (!isObject(root)) continue;
+      const entries = Array.isArray(root['@graph'])
+        ? root['@graph'].map((n, i) => [n, `${path}.@graph[${i}]`])
+        : [[root, path]];
+      for (const [node, p] of entries) {
+        if (!isObject(node)) continue;
+        tops.push({ node, pos, path: p });
+        collect(node, pos, p, true);
+      }
+    }
+  });
+
+  // Output order as on validator.schema.org: @type, @id, literal values, then nested objects.
+  const expand = (raw, pos, path, stack, sources) => {
+    const id = typeof raw['@id'] === 'string' && raw['@id'] ? raw['@id'] : null;
+    const merged = id ? nodes.get(id) : null;
+    if (id && !merged) return { '@type': 'Thing', '@id': id };
+    if (id && stack.includes(id)) return { '@id': id };
+
+    let types;
+    let props;
+    const nextStack = id ? [...stack, id] : stack;
+    if (merged) {
+      types = merged.types;
+      props = [...merged.props].map(([k, values]) => [k, values.map((x) => x.value), null]);
+      sources.push(...merged.sources);
+    } else {
+      types = raw['@type'] != null ? asArray(raw['@type']) : [];
+      props = Object.entries(raw)
+        .filter(([k]) => !k.startsWith('@'))
+        .map(([k, v]) => [k, asArray(v), `${path}.${k}`]);
+      sources.push({ pos, path });
+    }
+
+    const out = {};
+    if (types.length) out['@type'] = types.length === 1 ? types[0] : types;
+    if (id) out['@id'] = id;
+    const literals = [];
+    const objects = [];
+    for (const [k, values, propPath] of props) {
+      const isObj = values.some(isObject);
+      const expanded = values.map((v, i) =>
+        isObject(v) && !('@value' in v)
+          ? expand(v, pos, propPath ? (values.length > 1 ? `${propPath}[${i}]` : propPath) : path, nextStack, sources)
+          : v,
+      );
+      (isObj ? objects : literals).push([k, expanded.length === 1 ? expanded[0] : expanded]);
+    }
+    for (const [k, v] of [...literals, ...objects]) out[k] = v;
+    return out;
+  };
+
+  const items = [];
+  const listed = new Set();
+  for (const { node, pos, path } of tops) {
+    const id = typeof node['@id'] === 'string' && node['@id'] ? node['@id'] : null;
+    if (id && (referenced.has(id) || listed.has(id))) continue;
+    if (id) listed.add(id);
+    const sources = [];
+    const data = expand(node, pos, path, [], sources);
+    items.push({ id, types: data['@type'] != null ? asArray(data['@type']) : [], data, sources });
+  }
+  return items;
+}
+
+// True when the issue (at results[pos]) lies inside one of the item's source nodes.
+export function issueInItem(item, pos, path) {
+  return item.sources.some(
+    (s) => s.pos === pos && (path === s.path || path.startsWith(`${s.path}.`) || path.startsWith(`${s.path}[`)),
+  );
 }
