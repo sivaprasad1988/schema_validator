@@ -16,12 +16,14 @@ Clicking the toolbar icon opens the panel. Validation runs fully offline against
   - property is expected on the type, including inherited properties (`domainIncludes` + `subClassOf`)
   - value matches expected type (`rangeIncludes`): Text, URL, Date, DateTime, Time, Number, Integer, Boolean, enumeration members, nested entities
   - superseded and pending terms
-  - `@id` references resolve across all JSON-LD blocks on the page; duplicate definitions
+  - `@id` references resolve across all JSON-LD blocks on the page (undefined references: info)
+- "Detected items" view like validator.schema.org: nodes with the same `@id` are merged, referenced nodes are nested instead of listed separately, undefined references show as `@type: Thing`.
 - Severity filter (error / warning / info), structure tree with markers, click on issue jumps to the node, source view with copy.
 - Re-scans on tab switch, page load and URL change. Manual "Rescan" button.
 - Links to Google Rich Results Test and Schema Markup Validator for public pages.
+- Toolbar badge after every page load (panel need not be open): number of detected items; red = errors, orange = warnings, green = valid, grey `0` = no JSON-LD. Tooltip shows counts.
 
-Not included yet: Google rich-result rules (required/recommended per type), Microdata/RDFa, toolbar badge, German UI.
+Not included yet: Google rich-result rules (required/recommended per type), Microdata/RDFa, German UI.
 
 ## Requirements
 
